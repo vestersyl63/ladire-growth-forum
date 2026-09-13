@@ -1,0 +1,38 @@
+name: Bootstrap Admin
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed-admin:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+      SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+      SEED_ADMIN_NAME: ${{ secrets.SEED_ADMIN_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify admin bootstrap secrets
+        run: |
+          test -n "$SEED_ADMIN_EMAIL"
+          test -n "$SEED_ADMIN_PASSWORD"
+          test "${#SEED_ADMIN_PASSWORD}" -ge 12
+
+      - name: Create or update Super Admin
+        run: node prisma/seed.mjs

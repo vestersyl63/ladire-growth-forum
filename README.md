@@ -113,7 +113,7 @@ volume for `/app/storage`.
 1. Push the repo to GitHub and import into Vercel.
 2. Add env vars from `.env.example` (set `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, `APP_TIMEZONE`).
 3. **Storage caveat:** see the file-storage section above before going live.
-4. Run migrations from your machine (`npx prisma migrate deploy`) or a one-off job against the same DB.
+4. Add `DATABASE_URL` and `DIRECT_URL` as GitHub Actions secrets, then run the included `Prisma Migrations` workflow manually against production.
 
 Any host: set `AUTH_URL` to the deployed origin and add its Google redirect URI
 `{AUTH_URL}/api/auth/callback/google` if Google sign-in is used.
@@ -139,11 +139,11 @@ deploying the new build.
 
 Use PostgreSQL/Neon. Set `DATABASE_URL` to the pooled Neon connection string and `DIRECT_URL` to the direct (non-pooler) Neon connection string. Do not commit either value.
 
-Prisma is configured with the PostgreSQL driver adapter and the Rust-free `engineType = "client"` runtime, so the application does not depend on Prisma's native query-engine binary. Prisma migration commands still require a supported Prisma CLI environment; if Termux cannot run a migration command, apply migrations from a Linux/CI job against the same Neon database.
+Prisma uses the standard engine-backed runtime with a Vercel-compatible `rhel-openssl-3.0.x` binary target. This intentionally avoids the Prisma 6 query-compiler WASM deployment issue seen on Vercel. A manual GitHub Actions migration workflow is included so Termux does not need to run Prisma's native migration engine.
 
 ### File storage
 
-`STORAGE_DRIVER=auto` is the recommended setting. Local development uses `./storage`; a Vercel deployment automatically selects Vercel Blob. Connect a **Private** Blob store to the Vercel project for payment receipts and keep public media separate from private receipts. Vercel Blob supports private objects and server-side authenticated reads. See the official Vercel Blob documentation before creating the production store.
+`STORAGE_DRIVER=auto` is the recommended setting. Local development uses `./storage`; a Vercel deployment automatically selects Vercel Blob. Create one **Private** Blob store for the application. Public images are served through `/media/...`, while payment receipts are served through `/files/...` only after user/admin authorization.
 
 The application limits server-side uploads to 4 MB so receipt and admin media uploads remain below Vercel's server request-body limit. For larger media, use a future direct-to-Blob client-upload flow rather than increasing the server action limit.
 
@@ -161,3 +161,24 @@ The application limits server-side uploads to 4 MB so receipt and admin media up
 - `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, and optionally `SEED_ADMIN_NAME` only when intentionally running the seed command
 
 Never use the demo bank account details for real voting. Replace them in **Admin → Settings** before enabling live voting.
+
+
+## GitHub Actions production setup
+
+The repository includes two manual workflows under `.github/workflows/`:
+
+- `Prisma Migrations` applies all committed PostgreSQL migrations to the production Neon database.
+- `Bootstrap Admin` creates or updates the initial Super Admin from protected GitHub repository secrets.
+
+Add the following repository secrets under GitHub → Settings → Secrets and variables → Actions:
+
+- `DATABASE_URL` — pooled Neon connection string
+- `DIRECT_URL` — direct/non-pooler Neon connection string
+
+For the `Bootstrap Admin` workflow also add:
+
+- `SEED_ADMIN_EMAIL`
+- `SEED_ADMIN_PASSWORD` (12+ characters)
+- `SEED_ADMIN_NAME` (optional)
+
+The migration workflow is manual by design so Vercel Preview deployments cannot modify the production database schema.

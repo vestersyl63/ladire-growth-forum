@@ -36,3 +36,15 @@ Do not commit `.env` or any production secret.
 - `dotenv` is a direct runtime dependency because Prisma config imports `dotenv/config`.
 - The public site layout is forced dynamic so database-backed pages are not prerendered during Android builds, avoiding Prisma native-engine execution at build time.
 - Next.js workspace tracing root is explicitly set to the project directory.
+
+
+## V4 — Vercel runtime + storage correction
+- Reverted Prisma from the Rust-free query compiler to the standard engine-backed Prisma Client for reliable Vercel runtime behavior.
+- Added `rhel-openssl-3.0.x` to the Prisma client binary targets for Vercel's Node runtime.
+- Removed runtime use of `PrismaPg` from `src/lib/prisma.ts`.
+- Runs `prisma generate` explicitly during builds to avoid stale generated clients.
+- Kept Prisma server dependencies external to Next.js bundling.
+- Corrected Vercel Blob architecture to use a Private Blob store consistently; public media is proxied through `/media`, receipts through protected `/files`.
+- Added manual GitHub Actions workflows for production migrations and one-time Super Admin bootstrap.
+- Stopped the seed script from printing administrator passwords.
+- Restored a safe `.env.example` for repository/deployment setup.

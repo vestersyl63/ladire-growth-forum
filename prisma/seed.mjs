@@ -2,9 +2,8 @@
  * admin console can be signed into at /admin/login.
  *
  * Usage: node prisma/seed.mjs
- * Credentials come from env (SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD) and fall
- * back to the development defaults printed at the end. Change the password
- * after first login.
+ * Credentials come from env (SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD).
+ * The password is never printed to logs.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -50,7 +49,6 @@ async function main() {
 
   console.log(`\nAdmin console ready — sign in at /admin/login`);
   console.log(`  email:    ${admin.email}`);
-  console.log(`  password: ${password}`);
   console.log(`  role:     ${admin.role} (status ${admin.status})`);
 }
 

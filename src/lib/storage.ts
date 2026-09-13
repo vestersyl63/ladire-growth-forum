@@ -123,14 +123,17 @@ export async function saveFile(args: {
 
   if (driver() === "vercel-blob") {
     const blob = await loadBlobSdk();
-    const result = await blob.put(blobPath(key, visibility), args.buffer, {
-      access: visibility,
+    // Use a Private Blob store for the application. Public images are still
+    // publicly deliverable through our authenticated-by-path /media route;
+    // payment receipts use /files with per-user/admin authorization.
+    const result = await blob.put(blobPath(key, "private"), args.buffer, {
+      access: "private",
       addRandomSuffix: false,
       contentType: args.mimeType,
     });
     return {
       key,
-      url: result.url,
+      url: visibility === "public" ? `/media/${key.split("/").map(encodeURIComponent).join("/")}` : `/files/${key.split("/").map(encodeURIComponent).join("/")}`,
       originalName: args.originalName,
       mimeType: args.mimeType,
       sizeBytes: args.buffer.length,
@@ -153,7 +156,7 @@ export async function readStoredFile(key: string, visibility: StorageVisibility)
   try {
     if (driver() === "vercel-blob") {
       const blob = await loadBlobSdk();
-      const result = await blob.get(blobPath(key, visibility), { access: visibility, useCache: false });
+      const result = await blob.get(blobPath(key, "private"), { access: "private", useCache: false });
       if (!result) return null;
       const bytes = Buffer.from(await new Response(result.stream).arrayBuffer());
       const ext = extensionFor(result.blob?.contentType || "application/octet-stream", key);
