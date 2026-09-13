@@ -1,0 +1,711 @@
+// ============================================================
+// LADIRE GROWTH FORUM — PostgreSQL schema
+// Provider is PostgreSQL ONLY (works with Neon PostgreSQL).
+// Never switch this to SQLite — the schema uses native
+// Postgres features (enums, text[], JSONB, advisory-safe tx).
+// ============================================================
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  PAYMENT_VERIFIER
+  CONTENT_MANAGER
+}
+
+enum AdminStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MemberStatus {
+  PENDING
+  ACTIVE
+  ARCHIVED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum EventCategory {
+  AWARDS
+  DAYTIME_HANGOUT
+  VACATION_PROGRAMME
+  WORKSHOP
+  TRAINING
+  COMMUNITY
+  CULTURAL
+  OTHER
+}
+
+// What participation model an event uses.
+enum ParticipationMode {
+  NONE
+  REGISTRATION
+  BOOKING
+  BOTH
+}
+
+enum BookingOptionType {
+  SEAT
+  TABLE
+  GENERAL
+  CUSTOM
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ResultsStatus {
+  HIDDEN
+  LIVE
+  FINAL
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ContactStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ActorKind {
+  ADMIN
+  USER
+  SYSTEM
+}
+
+// ------------------------------------------------------------
+// AUTH — end users (NextAuth v5 adapter models)
+// ------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  phone         String?   @unique
+  phoneVerified Boolean   @default(false)
+  passwordHash  String?
+  status        UserStatus @default(ACTIVE)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  member             Member?
+  eventRegistrations EventRegistration[]
+  bookings           EventBooking[]
+  vacationBookings   VacationBooking[]
+  voteOrders         VoteOrder[]
+  payments           Payment[]
+  receipts           PaymentReceipt[]
+  notifications      Notification[]
+  votes              Vote[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ------------------------------------------------------------
+// ADMIN USERS — separate, privileged surface
+// ------------------------------------------------------------
+
+model AdminUser {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  phone        String?     @unique
+  passwordHash String
+  role         AdminRole   @default(ADMIN)
+  status       AdminStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdById  String?     // SUPER_ADMIN that created this account
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  auditedActions   AuditLog[]
+  createdNotes     PaymentNote[]
+  paymentsReviewed Payment[]
+  votesApproved    Vote[]
+
+  @@index([role])
+  @@index([status])
+}
+
+// ------------------------------------------------------------
+// MEMBERSHIP — public member/participant registry
+// ------------------------------------------------------------
+
+model Member {
+  id            String       @id @default(cuid())
+  userId        String?      @unique
+  fullName      String
+  email         String?
+  phone         String?
+  dob           DateTime?
+  city          String?
+  areaOfInterest String?
+  skills        String[]     @default([])
+  socials       Json?        // { instagram?, tiktok?, x?, facebook? }
+  reason        String?      @db.Text
+  consent       Boolean      @default(false)
+  status        MemberStatus @default(PENDING)
+  notes         String?      @db.Text
+  createdAt     DateTime     @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ------------------------------------------------------------
+// EVENTS & BOOKINGS
+// ------------------------------------------------------------
+
+model Event {
+  id                 String            @id @default(cuid())
+  title              String
+  slug               String            @unique
+  summary            String?           @db.Text
+  description        String?           @db.Text // rich-ish text
+  imageUrl           String?
+  category           EventCategory     @default(OTHER)
+  startsAt           DateTime
+  endsAt             DateTime?
+  venue              String?
+  location           String?
+  capacity           Int?
+  priceInKobo        Int?              // null = free
+  currency           String            @default("NGN")
+  participation      ParticipationMode @default(REGISTRATION)
+  registrationDeadline DateTime?
+  bookingType        BookingOptionType?
+  bookingDeadline    DateTime?
+  bookingCapacity    Int?              // tables/options count sold guard
+  externalUrl        String?
+  instructions       String?           @db.Text // registration/payment instructions
+  isFeatured         Boolean           @default(false)
+  status             EventStatus       @default(DRAFT)
+  createdById        String?           // AdminUser id
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  registrations EventRegistration[]
+  bookingOptions EventBookingOption[]
+  bookings       EventBooking[]
+
+  @@index([status, startsAt])
+  @@index([category])
+}
+
+model EventRegistration {
+  id            String        @id @default(cuid())
+  reference     String        @unique
+  eventId       String
+  userId        String?
+  name          String
+  email         String?
+  phone         String?
+  quantity      Int           @default(1)
+  status        BookingStatus @default(PENDING)
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([status])
+}
+
+model EventBookingOption {
+  id             String            @id @default(cuid())
+  eventId        String
+  title          String            // "Table 1", "VIP Seat", "Group of 5"
+  type           BookingOptionType @default(SEAT)
+  capacity       Int?              // available quantity for this option
+  priceInKobo    Int?              // null = free / included
+  sortOrder      Int               @default(0)
+  isAvailable    Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  event   Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  bookings EventBooking[]
+
+  @@index([eventId])
+}
+
+model EventBooking {
+  id            String       @id @default(cuid())
+  reference     String       @unique
+  eventId       String
+  optionId      String?
+  userId        String?
+  name          String
+  email         String?
+  phone         String?
+  quantity      Int          @default(1)
+  unitPriceKobo Int?
+  totalKobo     Int?         // server computed (option price x qty) — may be 0/free
+  status        BookingStatus @default(PENDING)
+  notes         String?      @db.Text
+  createdAt     DateTime     @default(now())
+
+  event  Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  option EventBookingOption? @relation(fields: [optionId], references: [id], onDelete: SetNull)
+  user   User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ------------------------------------------------------------
+// VACATION / HOLIDAY PROGRAMME (lightweight reservation)
+// ------------------------------------------------------------
+
+model VacationProgramme {
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  description     String?  @db.Text
+  imageUrl        String?
+  ageRange        String?  // "8 – 16 years" etc (editable)
+  requirements    String?  @db.Text
+  activities      String[] @default([])
+  venue           String?
+  location        String?
+  startsAt        DateTime
+  endsAt          DateTime?
+  priceInKobo     Int?     // null = free
+  capacity        Int?
+  bookingOpen     Boolean  @default(false)
+  bookingDeadline DateTime?
+  isPublished     Boolean  @default(false)
+  isFeatured      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bookings VacationBooking[]
+
+  @@index([isPublished, startsAt])
+}
+
+model VacationBooking {
+  id             String   @id @default(cuid())
+  reference      String   @unique
+  programmeId    String
+  userId         String?
+  participantName String
+  participantAge String?  // age or age group text
+  parentName     String?
+  parentPhone    String?
+  parentEmail    String?
+  quantity       Int      @default(1) // number of children/places
+  notes          String?  @db.Text
+  status         BookingStatus @default(PENDING)
+  createdAt      DateTime @default(now())
+
+  programme VacationProgramme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([programmeId])
+  @@index([status])
+}
+
+// ------------------------------------------------------------
+// AWARDS, NOMINEES, VOTING, PAYMENTS
+// ------------------------------------------------------------
+
+model Award {
+  id                  String        @id @default(cuid())
+  title               String
+  slug                String        @unique
+  tagline             String?       // "WHERE CULTURE MEETS DESIGN."
+  description         String?       @db.Text
+  imageUrl            String?
+  venue               String?
+  eventStartsAt       DateTime?
+  eventEndsAt         DateTime?
+  // Voting configuration (server-enforced)
+  votingOpensAt       DateTime?
+  votingClosesAt      DateTime?
+  pricePerVoteKobo    Int?          // global default price for this awards programme
+  minVotesPerTx       Int           @default(1)
+  maxVotesPerTx       Int           @default(500)
+  allowMultipleTx     Boolean       @default(true)
+  showPublicVoteCounts Boolean      @default(false)
+  resultsStatus       ResultsStatus @default(HIDDEN)
+  // Votes accepted after deadline only when explicitly allowed (rare, admin-controlled)
+  allowLateSubmissions Boolean      @default(false)
+  isActive            Boolean       @default(true)
+  isPublished         Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  categories AwardCategory[]
+  voteOrders VoteOrder[]
+
+  @@index([isActive, isPublished])
+}
+
+model AwardCategory {
+  id               String   @id @default(cuid())
+  awardId          String
+  name             String
+  slug             String?
+  description      String?  @db.Text
+  imageUrl         String?
+  icon             String?
+  sortOrder        Int      @default(0)
+  isPublished      Boolean  @default(false)
+  isVotingEnabled  Boolean  @default(true)
+  // Optional per-category override of the voting window / price
+  votingOpensAt    DateTime?
+  votingClosesAt   DateTime?
+  pricePerVoteKobo Int?
+  nomineeLimit     Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  award      Award       @relation(fields: [awardId], references: [id], onDelete: Cascade)
+  nominees   Nominee[]
+  voteOrders VoteOrder[]
+  votes      Vote[]
+
+  @@unique([awardId, name])
+  @@index([awardId])
+}
+
+model Nominee {
+  id           String   @id @default(cuid())
+  categoryId   String
+  name         String
+  stageName    String?
+  bio          String?  @db.Text
+  imageUrl     String?
+  socials      Json?    // { instagram?, tiktok?, x?, facebook?, youtube? }
+  isFeatured   Boolean  @default(false)
+  isPublished  Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  // Denormalised official count — ONLY ever updated inside the payment-approval
+  // transaction. Always keep in sync with sum(approved Vote.quantity).
+  officialVotes Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category   AwardCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  votes      Vote[]
+  voteOrders VoteOrder[]
+
+  @@index([categoryId, isPublished])
+  @@index([officialVotes])
+}
+
+// A user's purchase: "I am buying N votes for nominee X".
+// One VoteOrder <-> one Payment. Votes only materialise after approval.
+model VoteOrder {
+  id            String   @id @default(cuid())
+  reference     String   @unique // LADIRE-VOTE-2026-XXXXXX
+  userId        String
+  awardId       String
+  categoryId    String
+  nomineeId     String
+  quantity      Int      // votes being purchased
+  pricePerVoteKobo Int   // snapshot at order time (server derived)
+  amountKobo    Int      // quantity * pricePerVote (server computed)
+  currency      String   @default("NGN")
+  // Immutable display snapshots
+  awardTitle    String
+  categoryName  String
+  nomineeName   String
+  createdAt     DateTime @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  award    Award         @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  category AwardCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  nominee  Nominee       @relation(fields: [nomineeId], references: [id], onDelete: Restrict)
+  payment  Payment?
+  vote     Vote?
+
+  @@index([userId, createdAt])
+  @@index([nomineeId])
+  @@index([createdAt])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  reference       String        @unique // same base reference as order; unique constraint
+  voteOrderId     String        @unique
+  userId          String
+  method          String        @default("BANK_TRANSFER") // future: CARD / PAYSTACK ...
+  status          PaymentStatus @default(PENDING)
+  // Expected vs submitted amounts (reconciliation)
+  amountExpectedKobo Int
+  amountPaidKobo    Int?
+  bankName          String?
+  transactionDate   DateTime?
+  paymentNote       String?      @db.Text // voter note on submission
+  // Verification (admin side)
+  rejectedReason   String?       @db.Text
+  adminNote        String?       @db.Text // private internal note
+  reviewedById     String?
+  reviewedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  voteOrder VoteOrder @relation(fields: [voteOrderId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  receipts  PaymentReceipt[]
+  notes     PaymentNote[]
+  reviewedBy AdminUser? @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@index([amountPaidKobo])
+}
+
+// Immutable record of each receipt upload. New uploads append — they never
+// silently overwrite an earlier proof (audit trail preserved).
+model PaymentReceipt {
+  id           String   @id @default(cuid())
+  paymentId    String
+  storageKey   String   @unique
+  url          String?  // storage access URL (may be private/signed)
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  payment Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+}
+
+// Private admin notes attached to a payment.
+model PaymentNote {
+  id        String   @id @default(cuid())
+  paymentId String
+  adminId   String?
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  payment Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  admin   AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+}
+
+// Official vote grant. Created exactly ONCE per approved order.
+// quantity > 1 means a single grant can represent N votes.
+model Vote {
+  id         String   @id @default(cuid())
+  orderId    String   @unique // hard guarantee: cannot double-grant the same order
+  userId     String
+  nomineeId  String
+  categoryId String
+  quantity   Int
+  approvedById String?
+  approvedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  order    VoteOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nominee  Nominee      @relation(fields: [nomineeId], references: [id], onDelete: Cascade)
+  category AwardCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  approvedBy AdminUser? @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([nomineeId])
+  @@index([categoryId])
+  @@index([userId])
+  @@index([approvedAt])
+}
+
+// ------------------------------------------------------------
+// CONTENT & COMMUNICATION
+// ------------------------------------------------------------
+
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String
+  slug        String             @unique
+  excerpt     String?            @db.Text
+  content     String?            @db.Text
+  imageUrl    String?
+  authorName  String?
+  isPinned    Boolean            @default(false)
+  status      AnnouncementStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([status, publishedAt])
+}
+
+model HomepageBanner {
+  id         String   @id @default(cuid())
+  title      String
+  subtitle   String?  @db.Text
+  imageUrl   String?
+  ctaLabel   String?
+  ctaHref    String?
+  startAt    DateTime?
+  endAt      DateTime?
+  priority   Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isActive, priority])
+}
+
+model ContactMessage {
+  id        String        @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  subject   String?
+  message   String        @db.Text
+  status    ContactStatus @default(NEW)
+  adminNote String?       @db.Text
+  createdAt DateTime      @default(now())
+
+  @@index([status, createdAt])
+}
+
+// Central, admin-managed settings. value always stored as text
+// (JSON-encoded when type = JSON so one column fits all).
+model SiteSetting {
+  key         String @id
+  value       String @db.Text
+  type        String @default("STRING") // STRING | TEXT | NUMBER | BOOLEAN | JSON
+  group       String @default("general")
+  label       String?
+  description String? @db.Text
+  updatedAt   DateTime @updatedAt
+}
+
+// ------------------------------------------------------------
+// NOTIFICATIONS, AUDIT
+// ------------------------------------------------------------
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // PAYMENT_SUBMITTED, PAYMENT_APPROVED, ...
+  title     String
+  body      String?  @db.Text
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  actorKind  ActorKind @default(SYSTEM)
+  actorId    String?   // AdminUser.id / User.id
+  actorName  String?
+  action     String    // APPROVE_PAYMENT, NOMINEE_CREATED ...
+  entityType String?   // PAYMENT, NOMINEE, EVENT ...
+  entityId   String?
+  description String?  @db.Text
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  admin AdminUser? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

@@ -1,0 +1,346 @@
+@import "tailwindcss";
+
+/* ============================================================
+   LADIRE GROWTH FORUM — design tokens
+   Derived from the official logo palette:
+   deep navy, crimson red, olive/lime green, flame orange, white.
+   ============================================================ */
+
+@theme {
+  /* Navy — primary dark */
+  --color-navy-50: #f0f3fb;
+  --color-navy-100: #dce3f4;
+  --color-navy-200: #bcc9e8;
+  --color-navy-300: #91a4d6;
+  --color-navy-400: #6278bd;
+  --color-navy-500: #40579f;
+  --color-navy-600: #2d4283;
+  --color-navy-700: #223268;
+  --color-navy-800: #171f45;
+  --color-navy-900: #0d1330;
+  --color-navy-950: #070a1b;
+
+  /* Crimson — logo red */
+  --color-crimson-50: #fef1f2;
+  --color-crimson-100: #fddde0;
+  --color-crimson-200: #fbbcc3;
+  --color-crimson-300: #f58d99;
+  --color-crimson-400: #ec5668;
+  --color-crimson-500: #dc2b42;
+  --color-crimson-600: #b70515;
+  --color-crimson-700: #9c0817;
+  --color-crimson-800: #810b18;
+  --color-crimson-900: #6d0d19;
+  --color-crimson-950: #3b0209;
+
+  /* Olive — logo green */
+  --color-olive-50: #f8fbea;
+  --color-olive-100: #eef7cf;
+  --color-olive-200: #ddeb9a;
+  --color-olive-300: #c6da5f;
+  --color-olive-400: #adc636;
+  --color-olive-500: #8fae1a;
+  --color-olive-600: #6d8d00;
+  --color-olive-700: #556e03;
+  --color-olive-800: #435708;
+  --color-olive-900: #39490c;
+  --color-olive-950: #1e2803;
+
+  /* Flame — logo orange */
+  --color-flame-50: #fff8ed;
+  --color-flame-100: #ffefd4;
+  --color-flame-200: #ffdca8;
+  --color-flame-300: #ffc271;
+  --color-flame-400: #ff9c38;
+  --color-flame-500: #fd7f12;
+  --color-flame-600: #ee6108;
+  --color-flame-700: #c54709;
+  --color-flame-800: #9c3810;
+  --color-flame-900: #7d2f11;
+  --color-flame-950: #441506;
+
+  /* Gold — celebratory accent for the awards */
+  --color-gold-300: #ffd97a;
+  --color-gold-400: #f9c53d;
+  --color-gold-500: #efaf0b;
+  --color-gold-600: #c98b02;
+
+  /* Fonts */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: var(--font-sora), var(--font-inter), ui-sans-serif, system-ui,
+    sans-serif;
+
+  /* Motion */
+  --animate-fade-up: fade-up 0.6s ease both;
+  --animate-fade-in: fade-in 0.5s ease both;
+  --animate-pop: pop 0.25s ease both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-float: float 5s ease-in-out infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-white text-navy-900 font-sans antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-crimson-600);
+  color: #fff;
+}
+
+/* Accessible focus */
+:focus-visible {
+  outline: 3px solid var(--color-gold-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@layer components {
+  .container-x {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap;
+    text-decoration: none;
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+  .btn-md {
+    @apply px-4 py-2.5 text-sm;
+  }
+  .btn-lg {
+    @apply px-6 py-3.5 text-base;
+  }
+  .btn-primary {
+    @apply bg-crimson-600 text-white shadow-sm hover:bg-crimson-700;
+  }
+  .btn-navy {
+    @apply bg-navy-900 text-white hover:bg-navy-800;
+  }
+  .btn-olive {
+    @apply bg-olive-600 text-white hover:bg-olive-700;
+  }
+  .btn-flame {
+    @apply bg-flame-600 text-white hover:bg-flame-700;
+  }
+  .btn-gold {
+    @apply bg-gold-400 text-navy-950 hover:bg-gold-300;
+  }
+  .btn-outline {
+    @apply border-2 border-navy-200 bg-white text-navy-900 hover:border-navy-400 hover:bg-navy-50;
+  }
+  .btn-outline-light {
+    @apply border-2 border-white/70 bg-white/10 text-white hover:bg-white/20 backdrop-blur;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-navy-700 hover:bg-navy-100;
+  }
+  .btn-ghost-light {
+    @apply bg-transparent text-white hover:bg-white/15;
+  }
+  .btn-success {
+    @apply bg-emerald-600 text-white hover:bg-emerald-700;
+  }
+  .btn-danger {
+    @apply bg-crimson-600 text-white hover:bg-crimson-700;
+  }
+  .btn-whatsapp {
+    @apply bg-[#25D366] text-white hover:bg-[#1ebe5b];
+  }
+  .btn-google {
+    @apply border border-navy-200 bg-white text-navy-800 hover:bg-navy-50;
+  }
+
+  .icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-navy-600 hover:bg-navy-100 transition-colors;
+  }
+
+  /* Fields */
+  .field {
+    @apply w-full rounded-xl border border-navy-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 placeholder:text-navy-300 transition-shadow focus:outline-none focus:ring-4 focus:ring-crimson-100 focus:border-crimson-400;
+  }
+  .field-error {
+    @apply border-crimson-500 bg-crimson-50/40;
+  }
+  .lbl {
+    @apply mb-1.5 block text-sm font-semibold text-navy-800;
+  }
+  .hint {
+    @apply mt-1 text-xs text-navy-500;
+  }
+
+  /* Cards & surfaces */
+  .card {
+    @apply rounded-2xl border border-navy-100 bg-white shadow-sm;
+  }
+  .card-hover {
+    @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:border-navy-200;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.18em] text-crimson-600;
+  }
+  .h-display {
+    @apply font-display font-extrabold tracking-tight text-navy-950;
+  }
+
+  /* Tables */
+  .tbl {
+    @apply w-full text-left text-sm;
+  }
+  .tbl th {
+    @apply whitespace-nowrap px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-navy-500;
+  }
+  .tbl td {
+    @apply px-3 py-3 align-middle;
+  }
+  .tbl tbody tr {
+    @apply border-t border-navy-100 hover:bg-navy-50/50;
+  }
+
+  /* Badge/status pills */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+  .badge-green {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+  .badge-amber {
+    @apply bg-amber-100 text-amber-800;
+  }
+  .badge-red {
+    @apply bg-crimson-100 text-crimson-800;
+  }
+  .badge-navy {
+    @apply bg-navy-100 text-navy-800;
+  }
+  .badge-gray {
+    @apply bg-navy-50 text-navy-600;
+  }
+
+  .divider {
+    @apply border-t border-navy-100;
+  }
+
+  /* Section rhythm */
+  .section {
+    @apply py-14 sm:py-20;
+  }
+  .section-title {
+    @apply font-display font-extrabold tracking-tight text-navy-950 text-3xl sm:text-4xl;
+  }
+  .section-sub {
+    @apply mt-4 max-w-2xl text-base leading-relaxed text-navy-600 sm:text-lg;
+  }
+
+  /* Prose-like text renderer */
+  .prose-sm {
+    @apply text-navy-700 leading-relaxed;
+  }
+  .prose-sm p {
+    @apply mb-3;
+  }
+  .prose-sm ul {
+    @apply mb-3 list-disc space-y-1 pl-5;
+  }
+  .prose-sm strong {
+    @apply text-navy-900 font-semibold;
+  }
+
+  /* Skeleton */
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-navy-100;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.55),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+
+  /* Texture helpers */
+  .bg-pattern-dots {
+    background-image: radial-gradient(
+      rgba(255, 255, 255, 0.09) 1.2px,
+      transparent 1.2px
+    );
+    background-size: 22px 22px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+    scroll-behavior: auto !important;
+  }
+}
